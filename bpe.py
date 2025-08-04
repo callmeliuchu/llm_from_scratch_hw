@@ -175,11 +175,11 @@ class Tokenizer:
 
             
 
-tokenizer = Tokenizer('/Users/liuchu/cs336/assignment1-basics/tests/fixtures/tinystories_sample.txt',100000,['<|endoftext|>'])
-tokenizer.train()
+# tokenizer = Tokenizer('/Users/liuchu/cs336/assignment1-basics/tests/fixtures/tinystories_sample.txt',100000,['<|endoftext|>'])
+# tokenizer.train()
 
-ids = tokenizer.encode("together now bhcsb c       hh")
-print(tokenizer.decode(ids))
+# ids = tokenizer.encode("together now bhcsb c       hh")
+# print(tokenizer.decode(ids))
 
 # print('together' in tokenizer.vocab)
 # print('together' in tokenizer.merges)

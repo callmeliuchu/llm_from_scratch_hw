@@ -30,7 +30,14 @@ def run_linear(
         Float[Tensor, "... d_out"]: The transformed output of your linear module.
     """
 
-    raise NotImplementedError
+    # raise NotImplementedError
+    from transformer import Linear
+    linear = Linear(in_features=d_in,out_features=d_out,device='cpu',dtype=torch.float32)
+    linear.weight.data = weights.clone()
+    return linear(in_features)
+    # layer = Linear(d_in, d_out)
+    # layer.weight.data = weights.clone()
+    # return layer(in_features)
 
 
 def run_embedding(
@@ -52,7 +59,11 @@ def run_embedding(
         Float[Tensor, "... d_model"]: Batch of embeddings returned by your Embedding layer.
     """
 
-    raise NotImplementedError
+    # raise NotImplementedError
+    from transformer import Embeddings
+    emb = Embeddings(vocab_size,d_model)
+    emb.weight.data = weights.clone()
+    return emb(token_ids)
 
 
 def run_swiglu(
@@ -254,7 +265,7 @@ def run_transformer_block(
                 Weights of affine transform for the first RMSNorm
                 applied in the transformer block.
                 Shape is (d_model,).
-            - `ffn.w1.weight`
+            - `ffn.w1.weight`x
                 Weight of the first linear transformation in the FFN.
                 Shape is (d_model, d_ff).
             - `ffn.w2.weight`
@@ -558,7 +569,9 @@ def get_tokenizer(
     Returns:
         A BPE tokenizer that uses the provided vocab, merges, and special tokens.
     """
-    raise NotImplementedError
+    # raise NotImplementedError
+    return 
+
 
 
 def run_train_bpe(
@@ -588,4 +601,5 @@ def run_train_bpe(
                 representing that <token1> was merged with <token2>.
                 Merges are ordered by order of creation.
     """
-    raise NotImplementedError
+    # return train_bpe(input_path,vocab_size,special_tokens)
+    raise NotImplementedError  
