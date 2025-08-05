@@ -95,7 +95,14 @@ def run_swiglu(
     # swiglu.w1.weight.data = w1_weight
     # swiglu.w2.weight.data = w2_weight
     # swiglu.w3.weight.data = w3_weight
-    raise NotImplementedError
+    # raise NotImplementedError
+    from transformer import SwiGLU
+    swiglu = SwiGLU(d_model,d_ff)
+    swiglu.W1.data = w1_weight
+    swiglu.W2.data = w2_weight
+    swiglu.W3.data = w3_weight
+    return swiglu(in_features)
+    
 
 
 def run_scaled_dot_product_attention(
@@ -390,7 +397,11 @@ def run_rmsnorm(
         Float[Tensor,"... d_model"]: Tensor of with the same shape as `in_features` with the output of running
         RMSNorm of the `in_features`.
     """
-    raise NotImplementedError
+    # raise NotImplementedError
+    from transformer import RMSNorm
+    rms = RMSNorm(d_model,eps)
+    rms.weight.data = weights
+    return rms(in_features)
 
 
 def run_silu(in_features: Float[Tensor, " ..."]) -> Float[Tensor, " ..."]:
