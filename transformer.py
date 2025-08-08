@@ -240,3 +240,154 @@ class SwiGLU(nn.Module):
         return (self.silu(x @ self.W1.T) * (x @ self.W3.T)) @ self.W2.T
     
 
+
+"""Deliverable: Implement a class RotaryPositionalEmbedding that applies RoPE to the input
+tensor.
+The following interface is recommended:
+def __init__(self, theta: float, d_k: int, max_seq_len: int, device=None) Construct the
+RoPE module and create buffers if needed.
+theta: float Θ value for the RoPE
+d_k: int dimension of query and key vectors
+max_seq_len: int Maximum sequence length that will be inputted
+device: torch.device | None = None Device to store the buffer on
+def forward(self, x: torch.Tensor, token_positions: torch.Tensor) -> torch.Tensor Process
+an input tensor of shape (..., seq_len, d_k) and return a tensor of the same shape. Note
+that you should tolerate x with an arbitrary number of batch dimensions. You should assume
+that the token positions are a tensor of shape (..., seq_len) specifying the token positions of
+x along the sequence dimension.
+You should use the token positions to slice your (possibly precomputed) cos and sin tensors along
+the sequence dimension.
+To test your implementation, complete [adapters.run_rope] and make sure it passes uv run
+pytest -k test_rope."""
+
+
+class RotaryPositionalEmbedding(nn.Module):
+
+    def __init__(self,theta: float, d_k: int, max_seq_len: int, device=None):
+        super().__init__()
+        self.theta = theta
+        self.d_k = d_k
+        self.max_seq_len = max_seq_len
+        self.devivce = device
+    
+    def forward(self, x: torch.Tensor, token_positions: torch.Tensor) -> torch.Tensor:
+        #### token_positions  ====> i
+        ###  
+        rotate_matrix = torch.zeros(self.d_k,self.d_k)
+        # c   -s
+        # s   c
+        # Seq_length
+        # 
+
+
+
+import torch
+import torch.nn as nn
+import math
+
+class RotaryPositionalEmbedding(nn.Module):
+    def __init__(self, theta: float, d_k: int, max_seq_len: int, device=None):
+        super().__init__()
+        self.theta = theta
+        self.d_k = d_k
+        self.max_seq_len = max_seq_len
+        self.device = device
+        
+        # 检查d_k是否为偶数（旋转需要成对处理）
+        assert d_k % 2 == 0, "d_k must be even"
+        
+        # 预计算频率因子
+        freqs = 1.0 / (theta ** (torch.arange(0, d_k, 2, device=device).float() / d_k))
+        
+        # 预计算位置索引
+        positions = torch.arange(max_seq_len, device=device).float()
+        
+        # 计算所有位置的角度
+        angles = torch.einsum('i,j->ij', positions, freqs)
+        
+        # 创建缓存
+        self.register_buffer("cos_cache", torch.cos(angles), persistent=False)
+        self.register_buffer("sin_cache", torch.sin(angles), persistent=False)
+    
+    def forward(self, x: torch.Tensor, token_positions: torch.Tensor) -> torch.Tensor:
+        """
+        x: 输入张量 (..., seq_len, d_k)
+        token_positions: 位置张量 (..., seq_len)
+        返回: 旋转后的张量 (..., seq_len, d_k)
+        """
+        # 1. 获取序列长度和批次维度
+        seq_len = x.size(-2)
+        
+        # 2. 根据token_positions获取对应的cos和sin值
+        # 展平批次维度以便索引
+        flat_positions = token_positions.view(-1)
+        cos = self.cos_cache[flat_positions].view(*token_positions.shape, -1)
+        sin = self.sin_cache[flat_positions].view(*token_positions.shape, -1)
+        
+        # 3. 将输入张量分成两部分（偶数和奇数索引）
+        x1 = x[..., 0::2]  # 偶数索引: 0, 2, 4, ...
+        x2 = x[..., 1::2]  # 奇数索引: 1, 3, 5, ...
+        
+        # 4. 应用旋转操作
+        # 旋转公式:
+        # [x1_rot]   [ cosθ  -sinθ ] [x1]
+        # [x2_rot] = [ sinθ   cosθ ] [x2]
+        x1_rot = x1 * cos - x2 * sin
+        x2_rot = x2 * cos + x1 * sin
+        
+        # 5. 重新组合旋转后的张量
+        # 创建输出张量
+        x_rotated = torch.empty_like(x)
+        # 将旋转后的值放回偶数位置
+        x_rotated[..., 0::2] = x1_rot
+        # 将旋转后的值放回奇数位置
+        x_rotated[..., 1::2] = x2_rot
+        
+        return x_rotated
+    
+
+    """Deliverable: Write a function to apply the softmax operation on a tensor. Your function should
+take two parameters: a tensor and a dimension i, and apply softmax to the i-th dimension of the input
+tensor. The output tensor should have the same shape as the input tensor, but its i-th dimension will
+now have a normalized probability distribution. Use the trick of subtracting the maximum value in
+the i-th dimension from all elements of the i-th dimension to avoid numerical stability issues.
+To test your implementation, complete [adapters.run_softmax] and make sure it passes uv run
+pytest -k test_softmax_matches_pytorch."""
+
+def softmax(in_features: torch.Tensor,dim):
+    new_features = in_features - in_features.max(dim=dim,keepdim=True)[0]
+    exp  = torch.exp(new_features)
+    sums = torch.sum(exp,dim=dim,keepdim=True)
+    probs = exp / sums
+    return probs
+    
+
+"""Problem (scaled_dot_product_attention): Implement scaled dot-product attention
+(5 points)
+Deliverable: Implement the scaled dot-product attention function. Your implementation should
+handle keys and queries of shape (batch_size, ..., seq_len, d_k) and values of shape
+(batch_size, ..., seq_len, d_v), where ... represents any number of other batch-like
+dimensions (if provided). The implementation should return an output with the shape (batch_size,
+..., d_v). See section 3.3 for a discussion on batch-like dimensions.
+Your implementation should also support an optional user-provided boolean mask of shape (seq_len,
+seq_len). The attention probabilities of positions with a mask value of True should collectively sum
+to 1, and the attention probabilities of positions with a mask value of False should be zero.
+To test your implementation against our provided tests, you will need to implement the test adapter
+at [adapters.run_scaled_dot_product_attention].
+uv run pytest -k test_scaled_dot_product_attention tests your implementation on third-order
+input tensors, while uv run pytest -k test_4d_scaled_dot_product_attention tests your
+implementation on fourth-order input tensors."""
+
+
+def scaled_dot_product_attention(Q: torch.Tensor,K: torch.Tensor,V: torch.Tensor,mask: torch.Tensor):
+    print('Q shape',Q.shape)
+    print('K shape',K.shape)
+    print('V shape',V.shape)
+    d = Q.shape[-1]
+    scaled = Q @ K.transpose(-2,-1) / (d ** 0.5)
+    print('scaled shape',scaled.shape)
+    print('mask shape',mask.shape)
+    scaled = scaled.masked_fill_(mask==False,float('-inf'))
+    scaled = softmax(scaled,-1)
+    return scaled @ V
+
