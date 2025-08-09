@@ -391,3 +391,93 @@ def scaled_dot_product_attention(Q: torch.Tensor,K: torch.Tensor,V: torch.Tensor
     scaled = softmax(scaled,-1)
     return scaled @ V
 
+
+"""Problem (multihead_self_attention): Implement causal multi-head self-attention (5
+points)
+Deliverable: Implement causal multi-head self-attention as a torch.nn.Module. Your implemen-
+tation should accept (at least) the following parameters:
+d_model: int Dimensionality of the Transformer block inputs.
+num_heads: int Number of heads to use in multi-head self-attention.
+Folllowing Vaswani et al. [2017], set dk = dv = dmodel/h. To test your implementation against our
+provided tests, implement the test adapter at [adapters.run_multihead_self_attention]. Then,
+run uv run pytest -k test_multihead_self_attention to test your implementation."""
+
+class MultiHeadSelfAttention(nn.Module):
+
+
+    def __init__(self,d_model,num_heads):
+        super().__init__()
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d = d_model // num_heads
+        self.WQ = Linear(self.d_model,self.d_model)
+        self.WK = Linear(self.d_model,self.d_model)
+        self.WV = Linear(self.d_model,self.d_model)
+        self.out = Linear(self.d_model,self.d_model)
+    
+    def forward(self,x):
+        ## x ==> B,T,C
+        ### 先假装是一个head
+        tmp_shape = x.shape
+        T = x.shape[-2]
+        Q = self.WQ(x) # ...,T,C
+        K = self.WK(x) # ...,T,C
+        V = self.WV(x) # ...,T,C
+        Q = Q.view(-1,T,self.num_heads,self.d).transpose(1,2) # ...,heads,T,d
+        K = K.view(-1,T,self.num_heads,self.d).transpose(1,2)
+        V = V.view(-1,T,self.num_heads,self.d).transpose(1,2)
+        # make mask
+        # True False False
+        # True True  False
+        # True True  True
+        mask = torch.ones(T,T)
+        mask = torch.tril(mask)
+        mask = mask == 1
+        # B,heads,T,d
+        v = scaled_dot_product_attention(Q,K,V,mask=mask)
+        # B,T,C
+        v = v.transpose(1,2).contiguous().view(*tmp_shape)
+        v = self.out(v)
+        return v
+
+
+class MultiHeadSelfAttentionRope(nn.Module):
+
+
+    def __init__(self,d_model,num_heads,theta,max_seq_len):
+        super().__init__()
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d = d_model // num_heads
+        self.WQ = Linear(self.d_model,self.d_model)
+        self.WK = Linear(self.d_model,self.d_model)
+        self.WV = Linear(self.d_model,self.d_model)
+        self.out = Linear(self.d_model,self.d_model)
+        self.rope = RotaryPositionalEmbedding(theta=theta,d_k=self.d,max_seq_len=max_seq_len)
+    
+    def forward(self,x,token_positions):
+        ## x ==> B,T,C
+        ### 先假装是一个head
+        tmp_shape = x.shape
+        T = x.shape[-2]
+        Q = self.WQ(x) # ...,T,C
+        K = self.WK(x) # ...,T,C
+        V = self.WV(x) # ...,T,C
+        Q = Q.view(-1,T,self.num_heads,self.d).transpose(1,2) # ...,heads,T,d
+        K = K.view(-1,T,self.num_heads,self.d).transpose(1,2)
+        V = V.view(-1,T,self.num_heads,self.d).transpose(1,2)
+        Q = self.rope(Q,token_positions)
+        K = self.rope(K,token_positions)
+        # make mask
+        # True False False
+        # True True  False
+        # True True  True
+        mask = torch.ones(T,T)
+        mask = torch.tril(mask)
+        mask = mask == 1
+        # B,heads,T,d
+        v = scaled_dot_product_attention(Q,K,V,mask=mask)
+        # B,T,C
+        v = v.transpose(1,2).contiguous().view(*tmp_shape)
+        v = self.out(v)
+        return v
