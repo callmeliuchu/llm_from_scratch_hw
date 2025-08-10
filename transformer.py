@@ -481,3 +481,34 @@ class MultiHeadSelfAttentionRope(nn.Module):
         v = v.transpose(1,2).contiguous().view(*tmp_shape)
         v = self.out(v)
         return v
+
+
+
+"""Problem (transformer_block): Implement the Transformer block (3 points)
+Implement the pre-norm Transformer block as described in §3.5 and illustrated in Figure 2. Your
+Transformer block should accept (at least) the following parameters.
+d_model: int Dimensionality of the Transformer block inputs.
+num_heads: int Number of heads to use in multi-head self-attention.
+d_ff: int Dimensionality of the position-wise feed-forward inner layer.
+To test your implementation, implement the adapter [adapters.run_transformer_block]. Then
+run uv run pytest -k test_transformer_block to test your implementation.
+Deliverable: Transformer block code that passes the provided tests."""
+
+class TransformerBlock(nn.Module):
+
+    def __init__(self,d_model,num_heads,d_ff,theta,max_seq_len):
+        super().__init__()
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d_ff = d_ff
+        self.rms1 = RMSNorm(d_model=d_model)
+        self.rms2 = RMSNorm(d_model=d_model)
+        self.fn = SwiGLU(d_model=d_model,dff=d_ff)
+        self.mha = MultiHeadSelfAttentionRope(d_model=d_model,num_heads=num_heads,theta=theta,max_seq_len=max_seq_len)
+    
+    def forward(self,x):
+        T = x.shape[-2]
+        token_positions = torch.arange(T)
+        x = x + self.mha(self.rms1(x),token_positions)
+        x = x + self.fn(self.rms2(x))
+        return x
