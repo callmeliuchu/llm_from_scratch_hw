@@ -406,8 +406,26 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
+    # raise NotImplementedError
+    from transformer import TransformerLM
+    llm = TransformerLM(vocab_size,context_length,num_layers,d_model,num_heads,d_ff,theta=rope_theta,max_seq_len=context_length)
+    llm.embeddings.weight.data = weights['token_embeddings.weight']
+    for num_layers,block in enumerate(llm.blocks):
+        block.mha.WQ.weight.data = weights[f'layers.{num_layers}.attn.q_proj.weight']
+        block.mha.WK.weight.data = weights[f'layers.{num_layers}.attn.k_proj.weight']
+        block.mha.WV.weight.data = weights[f'layers.{num_layers}.attn.v_proj.weight']
+        block.mha.out.weight.data = weights[f'layers.{num_layers}.attn.output_proj.weight']
+        block.rms1.weight.data = weights[f'layers.{num_layers}.ln1.weight']
+        block.fn.W1.data = weights[f'layers.{num_layers}.ffn.w1.weight']
+        block.fn.W2.data = weights[f'layers.{num_layers}.ffn.w2.weight']
+        block.fn.W3.data = weights[f'layers.{num_layers}.ffn.w3.weight']
+        block.rms2.weight.data = weights[f'layers.{num_layers}.ln2.weight']
+    llm.rms.weight.data = weights['ln_final.weight']
+    llm.linear.weight.data = weights['lm_head.weight']
+    return llm(in_indices)
 
+    
+    
 
 def run_rmsnorm(
     d_model: int,

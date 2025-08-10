@@ -512,3 +512,48 @@ class TransformerBlock(nn.Module):
         x = x + self.mha(self.rms1(x),token_positions)
         x = x + self.fn(self.rms2(x))
         return x
+    
+
+"""Problem (transformer_lm): Implementing the Transformer LM (3 points)
+Time to put it all together! Implement the Transformer language model as described in §3.1
+and illustrated in Figure 1. At minimum, your implementation should accept all the aforementioned
+construction parameters for the Transformer block, as well as these additional parameters:
+vocab_size: int The size of the vocabulary, necessary for determining the dimensionality of the token
+embedding matrix.
+context_length: int The maximum context length, necessary for determining the dimensionality of
+the position embedding matrix.
+num_layers: int The number of Transformer blocks to use.
+To test your implementation against our provided tests, you will first need to implement the test
+adapter at [adapters.run_transformer_lm]. Then, run uv run pytest -k test_transformer_lm
+to test your implementation.
+Deliverable: A Transformer LM module that passes the above tests."""
+
+
+class TransformerLM(nn.Module):
+
+    def __init__(self, vocab_size,context_length,num_layers,d_model,num_heads,d_ff,theta,max_seq_len):
+        super().__init__()
+        self.vocab_size = vocab_size
+        self.context_length =context_length
+        self.num_layers = num_layers
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d_ff = d_ff
+        self.theta = theta
+        self.max_seq_len = max_seq_len
+        self.blocks = nn.Sequential(
+            *[TransformerBlock(d_model,num_heads,d_ff,theta,max_seq_len)   for _ in range(self.num_layers)]
+        )
+        self.rms = RMSNorm(d_model)
+        self.embeddings = Embeddings(num_embeddings=vocab_size, embedding_dim=d_model)
+        self.linear = Linear(d_model,d_model)
+    
+    def forward(self,x):
+        ### x ===> B,T
+        x = self.embeddings(x)
+        ## B,T,C
+        x = self.blocks(x)
+        x = self.rms(x)
+        x = self.linear(x)
+        return x
+
