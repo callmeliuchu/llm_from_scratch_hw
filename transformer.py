@@ -623,3 +623,19 @@ class AdamW(torch.optim.Optimizer):
                     p.data -= alpha_t * self.state[key_p_m] / (torch.sqrt(self.state[key_p_v])+self.eplison)
                     p.data -= self.alpha * self.lamndax * p.data
         self.state['t'] = t + 1
+    
+
+
+"""Problem (learning_rate_schedule): Implement cosine learning rate schedule with
+warmup
+Write a function that takes t, αmax, αmin, Tw and Tc, and returns the learning rate αt according to
+the scheduler defined above. Then implement [adapters.get_lr_cosine_schedule] and make sure
+it passes uv run pytest -k test_get_lr_cosine_schedule."""
+
+
+def get_lr_cosine_schedule(t, a_max, a_min, Tw ,Tc):
+    if t < Tw:
+        return a_max * t / Tw
+    elif t <= Tc:
+        return a_min + 0.5 * (1 + math.cos(math.pi * (t-Tw)/(Tc-Tw))) * (a_max - a_min)
+    return a_min
