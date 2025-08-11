@@ -587,3 +587,39 @@ def cross_entropy(inputs , targets):
     return rs.mean()
 
     
+
+"""Problem (adamw): Implement AdamW (2 points)
+Deliverable: Implement the AdamW optimizer as a subclass of torch.optim.Optimizer. Your
+class should take the learning rate α in __init__, as well as the β, ϵ and λ hyperparameters. To help
+you keep state, the base Optimizer class gives you a dictionary self.state, which maps nn.Parameter
+objects to a dictionary that stores any information you need for that parameter (for AdamW, this would
+be the moment estimates). Implement [adapters.get_adamw_cls] and make sure it passes uv run
+pytest -k test_adamw."""
+
+
+class AdamW(torch.optim.Optimizer):
+
+    def __init__(self, params,lr,betas,eps,weight_decay):
+        super().__init__(params=params,defaults={})
+        self.alpha = lr
+        self.beta1 = betas[0]
+        self.beta2 = betas[1]
+        self.eplison = eps
+        self.lamndax = weight_decay
+    
+    def step(self):
+        t = self.state.get('t',1) 
+        for group in self.param_groups:
+            for p in group["params"]:
+                if p.grad is not None:
+                    key_p_m = str(id(p)) + '_m'  
+                    key_p_v = str(id(p)) + '_v'  
+                    if key_p_m not in self.state:
+                        self.state[key_p_m] = torch.zeros_like(p.grad)
+                        self.state[key_p_v] = torch.zeros_like(p.grad)       
+                    self.state[key_p_m] = self.beta1  * self.state[key_p_m] + (1-self.beta1) * p.grad
+                    self.state[key_p_v] = self.beta2 * self.state[key_p_v] + (1-self.beta2) * (p.grad**2)
+                    alpha_t = self.alpha * (1-self.beta2**t)**0.5 / (1-self.beta1**t)
+                    p.data -= alpha_t * self.state[key_p_m] / (torch.sqrt(self.state[key_p_v])+self.eplison)
+                    p.data -= self.alpha * self.lamndax * p.data
+        self.state['t'] = t + 1
