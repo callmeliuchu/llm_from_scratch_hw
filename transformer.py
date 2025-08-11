@@ -639,3 +639,22 @@ def get_lr_cosine_schedule(t, a_max, a_min, Tw ,Tc):
     elif t <= Tc:
         return a_min + 0.5 * (1 + math.cos(math.pi * (t-Tw)/(Tc-Tw))) * (a_max - a_min)
     return a_min
+
+
+"""Problem (gradient_clipping): Implement gradient clipping (1 point)
+Write a function that implements gradient clipping. Your function should take a list of parameters
+and a maximum ℓ2-norm. It should modify each parameter gradient in place. Use ϵ = 10−6 (the
+PyTorch default). Then, implement the adapter [adapters.run_gradient_clipping] and make sure
+it passes uv run pytest -k test_gradient_clipping."""
+
+
+def gradient_clipping(params,max_norm,eps=1e-6):
+    total_norm = 0
+    for param in params:
+        if param.grad is not None:
+            total_norm += (param.grad.data ** 2).sum()
+    total_norm = total_norm  ** 0.5
+    rate = max_norm / (total_norm+eps)
+    for param in params:
+        if param.grad is not None:
+            param.grad.data *= rate
