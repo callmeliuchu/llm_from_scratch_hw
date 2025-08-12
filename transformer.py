@@ -600,31 +600,78 @@ pytest -k test_adamw."""
 class AdamW(torch.optim.Optimizer):
 
     def __init__(self, params,lr,betas,eps,weight_decay):
-        super().__init__(params=params,defaults={})
-        self.alpha = lr
-        self.beta1 = betas[0]
-        self.beta2 = betas[1]
-        self.eplison = eps
-        self.lamndax = weight_decay
+        super().__init__(params=params,defaults=dict(
+        alpha = lr,
+        beta1 = betas[0],
+        beta2 = betas[1],
+        eplison = eps,
+        lamndax = weight_decay
+        ))
+
     
     def step(self):
-        t = self.state.get('t',1) 
         for group in self.param_groups:
             for p in group["params"]:
                 if p.grad is not None:
-                    key_p_m = str(id(p)) + '_m'  
-                    key_p_v = str(id(p)) + '_v'  
-                    if key_p_m not in self.state:
-                        self.state[key_p_m] = torch.zeros_like(p.grad)
-                        self.state[key_p_v] = torch.zeros_like(p.grad)       
-                    self.state[key_p_m] = self.beta1  * self.state[key_p_m] + (1-self.beta1) * p.grad
-                    self.state[key_p_v] = self.beta2 * self.state[key_p_v] + (1-self.beta2) * (p.grad**2)
-                    alpha_t = self.alpha * (1-self.beta2**t)**0.5 / (1-self.beta1**t)
-                    p.data -= alpha_t * self.state[key_p_m] / (torch.sqrt(self.state[key_p_v])+self.eplison)
-                    p.data -= self.alpha * self.lamndax * p.data
-        self.state['t'] = t + 1
-    
+                    if 'm' not in self.state[p]:
+                        self.state[p]['m'] = torch.zeros_like(p.grad)
+                    if 'v' not in self.state[p]:
+                        self.state[p]['v'] = torch.zeros_like(p.grad)       
+                    if 't' not in self.state[p]:
+                        self.state[p]['t'] = 1
+                    t = self.state[p]['t']
+                    self.state[p]['m'] = group['beta1']  * self.state[p]['m'] + (1-group['beta1']) * p.grad
+                    self.state[p]['v'] = group['beta2'] * self.state[p]['v'] + (1-group['beta2']) * (p.grad**2)
+                    alpha_t = group['alpha'] * (1-group['beta2']**t)**0.5 / (1-group['beta1']**t)
+                    p.data -= alpha_t * self.state[p]['m'] / (torch.sqrt(self.state[p]['v'])+group['eplison'])
+                    p.data -= group['alpha'] * group['lamndax'] * p.data
+                    self.state[p]['t'] = t + 1
+  
 
+    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), weight_decay=0, eps=1e-9) -> None:
+        assert lr > 0, ValueError(f"Invalid learning rate: {lr}")
+        self.eps = eps
+        super().__init__(
+            params,
+            {
+                "lr": lr,
+                "beta1": betas[0],
+                "beta2": betas[1],
+                "decay": weight_decay,
+            }
+        )
+        # Initialize momentums to zero
+        for group in self.param_groups:
+            for p in group["params"]:
+                state = self.state[p]
+                state["m"] = torch.zeros_like(p)
+                state["v"] = torch.zeros_like(p)
+        
+    def step(self, closure=None) -> None:
+        loss = None if closure is None else closure()
+        for group in self.param_groups:
+            lr = group["lr"]
+            beta1 = group["beta1"]
+            beta2 = group["beta2"]
+            decay = group["decay"]
+            for p in group["params"]:
+                if p.grad is None:
+                    continue
+                state = self.state[p]
+                t = state.get("t", 1)
+                m = state.get("m")
+                v = state.get("v")
+                grad = p.grad.data
+                m = beta1 * m + (1 - beta1) * grad
+                v = beta2 * v + (1 - beta2) * grad.pow(2)
+                # import pdb; pdb.set_trace()
+                lr_t = lr * math.sqrt(1 - beta2 ** t) / (1 - beta1 ** t)
+                p.data -= lr_t / (torch.sqrt(v) + self.eps) * m
+                p.data -= lr * decay * p.data
+                state["t"] = t + 1
+                state["m"] = m
+                state["v"] = v
+        return loss
 
 """Problem (learning_rate_schedule): Implement cosine learning rate schedule with
 warmup
@@ -683,3 +730,60 @@ def get_batch(x, batch_size, context_length, device):
         targets[b] = seq[1:]
     
     return torch.tensor(inputs,device=device), torch.tensor(targets,device=device)
+
+
+
+"""Problem (checkpointing): Implement model checkpointing (1 point)
+Implement the following two functions to load and save checkpoints:
+def save_checkpoint(model, optimizer, iteration, out) should dump all the state from the
+first three parameters into the file-like object out. You can use the state_dict method of both
+the model and the optimizer to get their relevant states and use torch.save(obj, out) to dump
+obj into out (PyTorch supports either a path or a file-like object here). A typical choice is to
+have obj be a dictionary, but you can use whatever format you want as long as you can load your
+checkpoint later.
+This function expects the following parameters:
+model: torch.nn.Module
+optimizer: torch.optim.Optimizer
+iteration: int
+out: str | os.PathLike | typing.BinaryIO | typing.IO[bytes]
+def load_checkpoint(src, model, optimizer) should load a checkpoint from src (path or file-
+like object), and then recover the model and optimizer states from that checkpoint. Your
+function should return the iteration number that was saved to the checkpoint. You can use
+torch.load(src) to recover what you saved in your save_checkpoint implementation, and the
+load_state_dict method in both the model and optimizers to return them to their previous
+states.
+This function expects the following parameters:
+src: str | os.PathLike | typing.BinaryIO | typing.IO[bytes]
+model: torch.nn.Module
+optimizer: torch.optim.Optimizer
+Implement the [adapters.run_save_checkpoint] and [adapters.run_load_checkpoint]
+adapters, and make sure they pass uv run pytest -k test_checkpointing."""
+
+import os
+import torch
+
+from typing import BinaryIO, IO
+
+
+def save_checkpoint(
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    iteration: int,
+    out: str | os.PathLike | BinaryIO | IO[bytes],
+    ) -> None: 
+    state_dict = dict(
+        model=model.state_dict(),
+        optimizer=optimizer.state_dict(),
+        iteration=iteration,
+    )
+    torch.save(state_dict, out)
+
+def load_checkpoint(
+    src: str | os.PathLike | BinaryIO | IO[bytes],
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer
+) -> int:
+    state_dict = torch.load(src)
+    model.load_state_dict(state_dict["model"])
+    optimizer.load_state_dict(state_dict["optimizer"])
+    return state_dict["iteration"]
