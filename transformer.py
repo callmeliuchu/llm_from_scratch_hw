@@ -658,3 +658,28 @@ def gradient_clipping(params,max_norm,eps=1e-6):
     for param in params:
         if param.grad is not None:
             param.grad.data *= rate
+
+"""Problem (data_loading): Implement data loading (2 points)
+Deliverable: Write a function that takes a numpy array x (integer array with token IDs), a
+batch_size, a context_length and a PyTorch device string (e.g., 'cpu' or 'cuda:0'), and returns
+a pair of tensors: the sampled input sequences and the corresponding next-token targets. Both ten-
+sors should have shape (batch_size, context_length) containing token IDs, and both should be
+placed on the requested device. To test your implementation against our provided tests, you will first
+need to implement the test adapter at [adapters.run_get_batch]. Then, run uv run pytest -k
+test_get_batch to test your implementation"""
+
+import numpy  as np
+
+def get_batch(x, batch_size, context_length, device):
+    max_idx = x - context_length - 1 ## 减一位了targets
+    inputs = np.zeros((batch_size,context_length))
+    targets = np.zeros((batch_size,context_length))
+
+    idxs = np.random.randint(0,max_idx+1,batch_size)
+
+    for b,idx in enumerate(idxs):
+        seq = x[idx:idx+context_length+1]
+        inputs[b] = seq[:-1]
+        targets[b] = seq[1:]
+    
+    return torch.tensor(inputs,device=device), torch.tensor(targets,device=device)
