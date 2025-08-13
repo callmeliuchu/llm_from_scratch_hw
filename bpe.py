@@ -135,6 +135,7 @@ class Tokenizer:
             s = ''.join(merge)
             if s not in self.vocab:
                 self.vocab[s] = len(self.vocab)
+        self.vocab['unk'] = len(self.vocab)
         
         for token,_id in self.vocab.items():
             self.id2token[_id] = token
@@ -163,7 +164,7 @@ class Tokenizer:
                 word = tmp
                 if not has_merge:
                     break
-            ids = [self.vocab[w] for w in word]
+            ids = [self.vocab[w] if w in self.vocab else self.vocab['unk'] for w in word ]
             ans.extend(ids)
         return ans
     
@@ -172,15 +173,3 @@ class Tokenizer:
             
 
             
-
-            
-
-# tokenizer = Tokenizer('/Users/liuchu/cs336/assignment1-basics/tests/fixtures/tinystories_sample.txt',100000,['<|endoftext|>'])
-# tokenizer.train()
-
-# ids = tokenizer.encode("together now bhcsb c       hh")
-# print(tokenizer.decode(ids))
-
-# print('together' in tokenizer.vocab)
-# print('together' in tokenizer.merges)
-# print(tokenizer.merges)

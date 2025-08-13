@@ -128,6 +128,7 @@ class Embeddings(nn.Module):
     def forward(self,token_ids: torch.Tensor):
         B,T = token_ids.shape
         indices = token_ids.view(-1) ## B * T
+        print('xxx',type(indices),indices)
         matrix = self.weight[indices] ## B * T , n
         result = matrix.view(B,T,-1)
         return result
@@ -546,7 +547,7 @@ class TransformerLM(nn.Module):
         )
         self.rms = RMSNorm(d_model)
         self.embeddings = Embeddings(num_embeddings=vocab_size, embedding_dim=d_model)
-        self.linear = Linear(d_model,d_model)
+        self.linear = Linear(d_model,vocab_size)
     
     def forward(self,x):
         ### x ===> B,T
@@ -583,6 +584,7 @@ def cross_entropy(inputs , targets):
     # inputs: Float[Tensor," batch_size vocab_size"]
     # targets: Int[Tensor, " batch_size"]
     logs = -log_softmax(inputs,dim=-1)
+    # print('yyyy',inputs.shape,targets.unsqueeze(-1).shape,targets,inputs)
     rs = torch.gather(logs,dim=-1,index=targets.unsqueeze(-1))
     return rs.mean()
 
@@ -718,7 +720,8 @@ test_get_batch to test your implementation"""
 import numpy  as np
 
 def get_batch(x, batch_size, context_length, device):
-    max_idx = x - context_length - 1 ## 减一位了targets
+    max_idx = len(x) - context_length - 1 ## 减一位了targets
+    print(max_idx)
     inputs = np.zeros((batch_size,context_length))
     targets = np.zeros((batch_size,context_length))
 
@@ -729,7 +732,7 @@ def get_batch(x, batch_size, context_length, device):
         inputs[b] = seq[:-1]
         targets[b] = seq[1:]
     
-    return torch.tensor(inputs,device=device), torch.tensor(targets,device=device)
+    return torch.LongTensor(inputs,device=device), torch.LongTensor(targets,device=device)
 
 
 
@@ -787,3 +790,17 @@ def load_checkpoint(
     model.load_state_dict(state_dict["model"])
     optimizer.load_state_dict(state_dict["optimizer"])
     return state_dict["iteration"]
+
+
+
+
+"""Problem (training_together): Put it together (4 points)
+Deliverable: Write a script that runs a training loop to train your model on user-provided input.
+In particular, we recommend that your training script allow for (at least) the following:
+• Ability to configure and control the various model and optimizer hyperparameters.
+• Memory-eﬀicient loading of training and validation large datasets with np.memmap.
+• Serializing checkpoints to a user-provided path.
+• Periodically logging training and validation performance (e.g., to console and/or an external
+service like Weights and Biases)"""
+
+
