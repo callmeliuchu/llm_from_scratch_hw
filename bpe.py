@@ -2,6 +2,8 @@ s = """low low low low low
 lower lower widest widest widest
 newest newest newest newest newest newest"""
 
+import json
+
 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 import regex as re
@@ -115,6 +117,31 @@ class Tokenizer:
         self.merges = []
         self.vocab_size = vocab_size
     
+    def dumps(self,name):
+        data = {
+            'input_path': self.input_path,
+            'vocab_size': self.vocab_size,
+            'special_tokens': self.special_tokens,
+            'vocab': self.vocab,
+            'id2token': self.id2token,
+            'merges': self.merges,
+            'vocab_size': self.vocab_size
+        }
+        with open(name,'w') as f:
+            json.dump(data,fp=f)
+    
+    @staticmethod
+    def load(name):
+        with open(name,'r') as f:
+            data = json.load(fp=f)
+        tokenizer = Tokenizer(data['input_path'],data['vocab_size'],data['special_tokens'])
+        tokenizer.vocab = data['vocab']
+        tokenizer.id2token = {int(_id):v for _id,v in data['id2token'].items()}
+        
+        tokenizer.merges = data['merges']
+        tokenizer.vocab_size = data['vocab_size']
+        return tokenizer
+        
     def train(self):
         for sp in self.special_tokens:
             if sp not in self.vocab:
@@ -141,35 +168,53 @@ class Tokenizer:
             self.id2token[_id] = token
         # print(self.vocab)
         # print(self.merges)
+
     
-    def encode(self,s):
-        words = re.findall(PAT, s)
+    def encode_iterable(self, iterable):
+        for text in iterable:
+            yield from self.encode(text)
+    
+    def encode(self,ss):
         ans = []
-        for word in words:
-            word = list(word)
-            while True:
-                i = 0
-                tmp = []
-                has_merge = False
-                while i < len(word)-1:
-                    if (word[i],word[i+1]) in self.merges:
-                        tmp.append(word[i]+word[i+1])
-                        has_merge = True
-                        i += 2
-                    else:
+        for s in ss.split('<|endoftext|>'):
+            words = re.findall(PAT, s)
+            for word in words:
+                word = list(word)
+                while True:
+                    i = 0
+                    tmp = []
+                    has_merge = False
+                    while i < len(word)-1:
+                        if (word[i],word[i+1]) in self.merges:
+                            tmp.append(word[i]+word[i+1])
+                            has_merge = True
+                            i += 2
+                        else:
+                            tmp.append(word[i])
+                            i += 1
+                    if i < len(word):
                         tmp.append(word[i])
-                        i += 1
-                if i < len(word):
-                    tmp.append(word[i])
-                word = tmp
-                if not has_merge:
-                    break
-            ids = [self.vocab[w] if w in self.vocab else self.vocab['unk'] for w in word ]
-            ans.extend(ids)
+                    word = tmp
+                    if not has_merge:
+                        break
+                ids = [self.vocab[w] if w in self.vocab else self.vocab['unk'] for w in word ]
+                ans.extend(ids)
         return ans
     
     def decode(self,ids):
-        return ''.join([self.id2token[_id] for _id in ids])
+        return ''.join([self.id2token.get(_id,'unk') for _id in ids])
             
 
             
+# tokenizer = Tokenizer('/Users/liuchu/cs336/assignment1-basics/tests/fixtures/tinystories_sample_5M.txt',
+#           vocab_size=10000,
+#           special_tokens=['<|endoftext|>'])
+
+# tokenizer.train()
+# tokenizer.dumps('tokenizer.json')
+
+# tokenizer = Tokenizer.load('tokenizer.json') 
+# ids = tokenizer.encode('I love   you, guys xi xi')
+# print(ids)
+# print(tokenizer.decode(ids))
+# print(tokenizer.id2token)
